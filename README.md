@@ -13,7 +13,7 @@ git clone https://github.com/yapingw/asset_pricing.git
 
 ## Table of Content
 - **Portfolio Optimization**
-    - Mean Variance Optimization: [Rmd](https://github.com/yapingw/asset_pricing/tree/master/srcMean_Variance_Optimization)
+    - Mean Variance Optimization: [Rmd](https://github.com/yapingw/asset_pricing/tree/master/src/Mean_Variance_Optimization)
     - CAPM and Factor Models: [Rmd](https://github.com/yapingw/asset_pricing/tree/master/src/CAPM_factor_models)
  - **Option Pricing**
     - Delta hedging and implied volatilities: [Jupyte Notebook](https://github.com/yapingw/asset_pricing/tree/master/src/DeltaHedging_ImpliedVolatilities.ipynb)
@@ -31,7 +31,7 @@ git clone https://github.com/yapingw/asset_pricing.git
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md) file for details
+This project is licensed under the MIT License - see the [LICENSE](https://github.com/yapingw/asset_pricing/blob/master/LICENSE) file for details
 
 
 ## Todos
