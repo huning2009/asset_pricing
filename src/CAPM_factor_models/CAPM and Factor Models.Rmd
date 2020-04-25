@@ -1,0 +1,388 @@
+---
+title: "CAPM and Factor Models"
+author: "Yaping Wang"
+date: "04/11/2019"
+output:
+  pdf_document:
+    toc: yes
+  html_document:
+    df_print: paged
+    toc: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE)
+```
+
+In this Rmd I will revisit the empirical evidence on the CAPM, the Fama-French FF 3-factor model, and the FF 5-factor model. We will use data on US stock market returns. These data are available from [Professor Kenneth French’s webpage](http://mba.tuck.dartmouth.edu/pages/faculty/ken.french/data library.html).
+
+
+
+```{r read data}
+# Clear everything
+rm( list=ls())
+
+
+# Open the dataset
+library(data.table) 
+ff3<-fread("F-F_Research_Data_Factors.csv", header=TRUE)
+ff5<-fread("F-F_Research_Data_5_Factors_2x3.csv", header=TRUE)
+pfs<-fread("25_Portfolios_5x5.csv", header=TRUE)
+
+# Converting Percentages to Decimals
+
+cols<-c( "Mkt-RF","SMB","HML","RF")
+for (j in cols) set(ff3, j = j, value = ff3[[j]] / 100)
+
+cols2<-c("Mkt-RF","SMB", "HML", "RMW", "CMA", "RF")
+for (j in cols2) set(ff5, j = j, value = ff5[[j]] / 100)
+
+cols3<-c( "SMALL LoBM","ME1 BM2", "ME1 BM3",    "ME1 BM4","SMALL HiBM", "ME2 BM1" ,   "ME2 BM2"  ,  "ME2 BM3"   , "ME2 BM4" ,  "ME2 BM5" ,  "ME3 BM1" ,   "ME3 BM2"   , "ME3 BM3"  ,  "ME3 BM4"  , "ME3 BM5"   , "ME4 BM1"  ,  "ME4 BM2" ,   "ME4 BM3" ,   "ME4 BM4"  ,  "ME4 BM5"  ,  "BIG LoBM" ,  "ME5 BM2"  ,  "ME5 BM3" ,   "ME5 BM4"  ,  "BIG HiBM"  )
+for (j in cols3) set(pfs, j = j, value = pfs[[j]] / 100)
+
+```
+
+
+# 1
+Calculate for each one of the 25 portfolios its excess return in each month (return minus the risk-free rate) and the sample mean of the time-series of excess returns. Display mean excess returns in a 5x5 Table. Draw a 3-D chart with the values of the 5x5 matrix. What can you say from those results?
+
+## mean excess returns table
+```{r Q1}
+# Compute excess return
+exR<-pfs[,-c(1)]-ff3[, RF]
+
+# Compute sample mean
+exR_mean<-exR[,lapply(.SD, mean)]
+
+# Dispaly in table
+mean_matrix<-matrix(exR_mean,nrow = 5, ncol = 5)
+colnames(mean_matrix) <- c("ME1","ME2","ME3","ME4","ME5")
+rownames(mean_matrix) <- c("BM1","BM2","BM3","BM4","BM5")
+mean_matrix
+
+# Draw the 3D chart
+mean_table<-as.matrix.data.frame(t(mean_matrix))
+par(ps=6, font.axis=4, font.lab=4)
+persp(x=c(1:5), y=c(1:5), mean_table, theta = 60, phi=20, ticktype = "detailed", expand = .4, shade = .2, xlab = "\nsize", ylab = "\nvalue", zlab = "\n\n\nMean Excess Return", r = 3, col = "turquoise", nticks = 5, border = "white", main ="Risk Prem. - Factors")
+
+```
+
+## What can you say from those results?
+Portfolios with small size (markert capitalization) tend to higher excess returns. Similar findings for portfolios with high book-to-market values (BM ratio).
+
+# 2
+## Estimated alpha of each portfolio
+```{r Q2}
+# Run a time-series OLS regression for each j
+f_aj<-function(x){
+  riskprej<-unlist((x-ff3[,"RF"]))
+  riskprem<-unlist(ff3[, "Mkt-RF"])
+  reg<-lm(riskprej ~ riskprem)
+  aj<-summary(reg)$coefficients[1]
+  return(aj)
+}
+
+# obtain alpha table
+alpha<-pfs[,lapply(.SD,f_aj)]
+alpha_matrix<-matrix(alpha[,2:26],nrow = 5, ncol = 5)
+alpha_matrix
+
+# 3-D plot
+alpha_table<-as.matrix.data.frame(t(alpha_matrix))
+par(ps=6, font.axis=4, font.lab=4)
+persp(x=c(1:5), y=c(1:5), alpha_table, theta = 60, phi=20, ticktype = "detailed", expand = .4, shade = .2, xlab = "\nsize", ylab = "\nvalue", zlab = "\n\n\nalpha", r = 3, col = "turquoise", nticks = 5, border = "white", main ="Alpha")
+
+#for (i in c(2:26)){
+#  alpha=c()
+#  jriskpre<-unlist(pfs[,i]-ff3[,"RF"])
+#  mriskpre<-unlist(ff3[, "Mkt-RF"])
+#  lm(jriskpre ~ mriskpre)
+#  alpha[i]<-summary(lm(jriskpre ~ mriskpre))$coefficients[1]
+#}
+#alpha
+
+# GRS test
+#cov matrix of residuals 
+f_res<-function(x){
+  riskprej<-unlist((x-ff3[,"RF"]))
+  riskprem<-unlist(ff3[, "Mkt-RF"])
+  reg<-lm(riskprej ~ riskprem)
+  res<-summary(reg)$residuals
+  return(res)
+}
+resi<-pfs[,lapply(.SD,f_res)]
+residuals<-resi[,2:26]
+covm<-cov(residuals)  
+
+#store alphas as a col vector
+abreturn<-as.numeric(alpha[,2:26]) 
+
+#Sharp ratio of the market portfolio
+mean_Rm_rf<-mean(ff3$"Mkt-RF")
+std_Rm_rf<-sd(ff3$"Mkt-RF")
+Msharp<-mean_Rm_rf/std_Rm_rf  
+  
+f_stat<-(660-25-1)/25*(1/(1+(Msharp)^2))*t(abreturn)%*%solve(covm)%*%(abreturn)
+GRS1<-pf(f_stat,25,634,lower.tail=F)
+
+```
+
+## What does the table suggest about the validity of the CAPM?
+If the CAPM holds, alpha of each portfolio should be equal to zero. However, as the regressions imply, there are significant positive or negtive pricing errors. We can conclude that there are positive alphas, thus it seems that the CAPM cannot fully price our stocks.
+
+## What portfolios deviate the most from the CAPM predictions?
+The portfolio with the highest value and smallest size (Small HiBM).
+
+## Joint Test using GRS t-statistics
+The GRS test statistic is 4.576918 and the corresponding $p= 3.943519^{-12}<1\%$, allowing us to reject the null hypothsis that all alphas are jointly zero at 1% significance level.
+
+
+# 3
+## Test the CAPM: summary of CRS
+```{r Q3}
+# obtain betas
+f_bj<-function(x){
+  riskprej<-unlist((x-ff3[,"RF"]))
+  riskprem<-unlist(ff3[, "Mkt-RF"])
+  reg<-lm(riskprej ~ riskprem)
+  bj<-summary(reg)$coefficients[2]
+  return(bj)
+}
+
+betas<-pfs[,lapply(.SD,f_bj)]
+betas1<-betas[,2:26] # drop the month col
+
+# Run a single cross-sectional OLS of mean excess returns on betas
+ex<-function(x){
+  ex<-unlist((x-ff3[,"RF"]))
+  return(ex)
+}
+exreturn<-pfs[,lapply(.SD,ex)]
+
+exR_mean<-exreturn[,lapply(.SD,mean)][,2:26]
+
+y<-unlist(exR_mean)
+x_beta<-unlist(betas1)
+reg1<-lm(y ~ x_beta)
+
+# Test the CAPM - gamma0
+summary(reg1) 
+
+# Test the CAPM - gamma1
+mean_Rm_rf<-as.numeric(ff3[,lapply(.SD, mean)][,2])
+# alternative: mean_Rm_rf<-mean(ff3$"Mkt-RF") 
+t_stat1<-(summary(reg1)$coefficients[2]-mean_Rm_rf)/summary(reg1)$coefficients[2,2]
+p_gamma1<-pnorm(unlist(t_stat1)) 
+```
+
+$\gamma_0$: As is shown above, the estimate of $\gamma_0$ is 0.010816 and the corresponding $p =0.00138<1\%$, thus we reject the null hypothesis that $\gamma_0 =0$.
+
+$\gamma_1$: The estimate of $\gamma_1$ is -0.003402 and the $\overline{R_m - R_f}$ is 0.005072424. The $t$ statistics is -3.11658 and corresonding $p=0.0009148101<1\%$, thus we reject the null hypothesis that $\gamma_1 = \overline{R_m - R_f}$.  
+
+The statistical tests for $\gamma_0$ and $\gamma_1$ both imply CAPM does not hold.
+
+# 4
+
+```{r Q4}
+# First step: estimate each stock’s beta for each month t
+f_bj2<-function(x){
+y<-c()
+for (i in c(1:624)){
+riskprej2<-unlist(x[i:(i+35)]-ff3[(i:(i+35)),"RF"])
+riskprem2<-unlist(ff3[(i:(i+35)),"Mkt-RF"])
+y[i]<-summary(lm(riskprej2~riskprem2))$coefficients[2]
+}
+return(y)
+}
+betas2<-pfs[,lapply(.SD,f_bj2)]
+
+betas_Fama<-betas2[,2:26] # drop the month col
+
+# for double check use
+#for (i in c(1:624)){
+#riskprej2<-unlist(pfs[(i:(i+35)), 3]-ff3[(i:(i+35)),"RF"])
+#riskprem2<-unlist(ff3[(i:(i+35)),"Mkt-RF"])
+#d[i]<-summary(lm(riskprej2~riskprem2))$coefficients[2]}
+#d
+
+# Second step: run cross-sectional regressions for each time t
+# compute excess returns at each t for each portfolio
+ex<-function(x){
+  ex<-unlist((x-ff3[,"RF"]))
+  return(ex)
+}
+exreturn<-pfs[,lapply(.SD,ex)]
+
+fgamma0_t<-c()
+fgamma1_t<-c()
+for (i in c(1:624)){
+  y2<-unlist(exreturn[(36+i),-c(1)])
+  x_beta2<-unlist(betas_Fama[i,])
+  fgamma0_t[i]<-summary(lm(y2 ~ x_beta2))$coefficients[1]
+  fgamma1_t[i]<-summary(lm(y2 ~ x_beta2))$coefficients[2]
+}
+
+
+# Compute Fama-MacBeth gamma0 & gamma1 
+fgamma0<-mean(fgamma0_t)
+fgamma1<-mean(fgamma1_t)
+
+# Compute the Std errors of Fama-MacBeth's estimates 
+t<-624
+fgamma0_t_var<-var(fgamma0_t)
+fgamma1_t_var<-var(fgamma1_t)
+
+fgamma0_std<-sqrt((1/t)*fgamma0_t_var)
+fgamma1_std<-sqrt((1/t)*fgamma1_t_var)
+
+# Test Fama-MacBeth gamma0 & gamma1 
+fmean_Rm_rf<-as.numeric(ff3[37:660,lapply(.SD, mean)][,2])
+t_stat_f0<-(fgamma0)/fgamma0_std
+t_stat_f1<-(fgamma1-fmean_Rm_rf)/fgamma1_std
+p_fgamma0<-pnorm(unlist(t_stat_f0),lower.tail=FALSE)
+p_fgamma1<-pnorm(unlist(t_stat_f1))
+
+```
+## The Fama-MacBeth coefficients and their standard errors
+$\gamma_0=0.008122115$  
+
+$\gamma_1=-0.001276719$ 
+
+$Std\gamma_0=0.002484676$ 
+
+$Std\gamma_1=0.002827005$
+
+
+## Comparing with the OLS ones and Testing the CAPM
+Standard errors is a measure of precision of the coefficients we estimated, meaning how much they vary from sample to sample. 
+
+Instead of running a single Cross Sectional Regression, running a large number of Cross Sectional Regressions corrects for Cross Sectional correlation and homoskedasticity assumption. It corrects the standard errors which otherwise could have been overrstimated or underestimated due to the fact that a single Cross Sectional Regression overlooks the effects of Cross Sectional Correlation and heteroskedastic errors which are totally possible in real world.
+
+Compared with the results in question 3, the standard error we obtained for $\gamma_0$ is lower but it is higher for $\gamma_1$. This implies $\gamma_0$ tends to vary less within samples while $\gamma_1$ tends to vary more compared with $\gamma_0$. 
+
+The $p$ value for each coefficient implies CAPM does not hold. For $\gamma_0$, $p= 0.000539865<1\%$ allows us to reject the hypothesis $\gamma_0 = 0$ at 1% significance level which implies there is significant positive alpha. For $\gamma_1$, $p=0.01068794 <5\%$ allows us to reject the hypothesis $\gamma_1 = \overline{R_m - R_f}$ at 5% significance level.
+
+# 5 
+## FF3 - estimated alphas and the 3-D plot
+```{r Q5 ff3}
+# Run a single time-series regression for FF3
+f_aj_ff3<-function(x){
+  riskprej<-unlist((x-ff3[,"RF"]))
+  riskprem<-unlist(ff3[, "Mkt-RF"])
+  riskpresmb<-unlist(ff3[, "SMB"])
+  riskprehml<-unlist(ff3[, "HML"])
+  reg<-lm(riskprej ~ riskprem+riskpresmb+riskprehml)
+  aj_ff3<-summary(reg)$coefficients[1]
+  return(aj_ff3)
+}
+
+# obtain alpha_ff3 table
+alpha_ff3<-pfs[,lapply(.SD,f_aj_ff3)]
+alpha_ff3_matrix<-matrix(alpha_ff3[,2:26],nrow = 5, ncol = 5)
+alpha_ff3_matrix
+
+# Display alphas of FF3
+alpha_ff3_table<-as.matrix.data.frame(t(alpha_ff3_matrix))
+par(ps=6, font.axis=4, font.lab=4)
+persp(x=c(1:5), y=c(1:5), alpha_ff3_table, theta = 60, phi=20, ticktype = "detailed", expand = .4, shade = .2, xlab = "\nsize", ylab = "\nvalue", zlab = "\n\n\nAlpha", r = 3, col = "turquoise", nticks = 5, border = "white", main ="Alphas - FF3")
+
+```
+
+
+```{r GRS test for FF3}
+# GRS test for FF3
+#cov matrix of residuals 
+f_res_ff3<-function(x){
+  riskprej<-unlist((x-ff3[,"RF"]))
+  riskprem<-unlist(ff3[, "Mkt-RF"])
+  riskpresmb<-unlist(ff3[, "SMB"])
+  riskprehml<-unlist(ff3[, "HML"])
+  reg<-lm(riskprej ~ riskprem+riskpresmb+riskprehml)
+  res_ff3<-summary(reg)$residuals
+  return(res_ff3)
+}
+
+
+resi_ff3<-pfs[,lapply(.SD,f_res_ff3)]
+residuals_ff3<-resi_ff3[,2:26]
+covm_ff3<-cov(residuals_ff3)  
+
+#store alphas as a col vector
+abreturn_ff3<-as.numeric(alpha_ff3[,2:26]) 
+
+#Sharp ratio of the market portfolio
+mean_Rm_rf<-mean(ff3$"Mkt-RF")
+std_Rm_rf<-sd(ff3$"Mkt-RF")
+Msharp<-mean_Rm_rf/std_Rm_rf  
+  
+f_stat_ff3<-(660-25-1)/25*(1/(1+(Msharp)^2))*t(abreturn_ff3)%*%solve(covm_ff3)%*%(abreturn_ff3)
+p_GRS_FF3<-pf(f_stat_ff3,25,634,lower.tail=F)
+```
+
+
+## FF5 - estimated alphas and the 3-D plot
+```{r Q5 ff5}
+# Run a single time-series regression for FF5
+f_aj_ff5<-function(x){
+  riskprej<-unlist((x-ff5[,"RF"]))
+  riskprem<-unlist(ff5[, "Mkt-RF"])
+  riskpresmb<-unlist(ff5[, "SMB"])
+  riskprehml<-unlist(ff5[, "HML"])
+  riskprermw<-unlist(ff5[, "RMW"])
+  riskprecma<-unlist(ff5[, "CMA"])
+  reg<-lm(riskprej ~ riskprem+riskpresmb+riskprehml+riskprermw+riskprecma)
+  aj_ff5<-summary(reg)$coefficients[1]
+  return(aj_ff5)
+}
+
+# Display alphas of FF5
+alpha_ff5<-pfs[,lapply(.SD,f_aj_ff5)]
+alpha_ff5_matrix<-matrix(alpha_ff5[,2:26],nrow = 5, ncol = 5)
+alpha_ff5_matrix
+
+
+# Display alohas of FF5
+alpha_ff5_table<-as.matrix.data.frame(t(alpha_ff5_matrix))
+par(ps=6, font.axis=4, font.lab=4)
+persp(x=c(1:5), y=c(1:5), alpha_ff5_table, theta = 60, phi=20, ticktype = "detailed", expand = .4, shade = .2, xlab = "\nsize", ylab = "\nvalue", zlab = "\n\n\nAlpha", r = 3, col = "turquoise", nticks = 5, border = "white", main ="Alphas - FF5")
+```
+
+```{r GRS test for FF5}
+# GRS test for FF5
+#cov matrix of residuals 
+f_res_ff5<-function(x){
+  riskprej<-unlist((x-ff5[,"RF"]))
+  riskprem<-unlist(ff5[, "Mkt-RF"])
+  riskpresmb<-unlist(ff5[, "SMB"])
+  riskprehml<-unlist(ff5[, "HML"])
+  riskprermw<-unlist(ff5[, "RMW"])
+  riskprecma<-unlist(ff5[, "CMA"])
+  reg<-lm(riskprej ~ riskprem+riskpresmb+riskprehml+riskprermw+riskprecma)
+  res_ff5<-summary(reg)$residuals
+  return(res_ff5)
+}
+
+
+resi_ff5<-pfs[,lapply(.SD,f_res_ff5)]
+residuals_ff5<-resi_ff5[,2:26]
+covm_ff5<-cov(residuals_ff5)  
+
+#store alphas as a col vector
+abreturn_ff5<-as.numeric(alpha_ff5[,2:26]) 
+
+#Sharp ratio of the market portfolio
+mean_Rm_rf<-mean(ff5$"Mkt-RF")
+std_Rm_rf<-sd(ff5$"Mkt-RF")
+Msharp<-mean_Rm_rf/std_Rm_rf  
+  
+f_stat_ff5<-(660-25-1)/25*(1/(1+(Msharp)^2))*t(abreturn_ff5)%*%solve(covm_ff5)%*%(abreturn_ff5)
+p_GRS_FF5<-pf(f_stat_ff5,25,634,lower.tail=F)
+
+```
+
+## Interpretations:
+The FF 3 factors and the FF 5 factor models take additional common sources of risks into account, which could possibly decrese pricing errors.
+
+As can be seen from the 3-D graphs, the deviations of pricing errors dramatically decrease compared to the ones we obtained in question 2.
+
+If we check the GRS test statistics for each model, both of them imply there is significant positive alpha. For FF 3 factors model, $t_{GRS} =3.953142$ and $p= 7.668097^{-10}<1\%$ allow us to reject the hypothesis $\alpha = 0$ at 1% significance level. For FF 5 factors model, $t_{GRS} =3.427978$ and $p=5.902528e^{-8}<1\%$ also allow us to reject the hypothesis $\alpha = 0$ at 1% significance level. 

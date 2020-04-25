@@ -1,0 +1,361 @@
+---
+title: "Mean Variance Optimization"
+author: "Yaping Wang"
+date: "21/10/2019"
+output:
+  pdf_document: default
+  html_document:
+    toc: true
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE)
+```
+
+- Consider the 17 industry portolios as the investable risky assets.  Use the available historical data to estimate the vector of expected returns, E(R), and the variance-covariance matrix, V.
+
+- Data taken from [Prof. French website](http://mba.tuck.dartmouth.edu/pages/faculty/ken.french/data library.html), it can be found in the repository.
+
+```{r read data}
+#Clear everything
+rm( list=ls())
+
+#Open the dataset
+data=read.csv("17_Industry_Portfolios.csv", header=TRUE)
+```
+
+
+
+# a) 
+Here we are finding  the composition of two portfolios in the frontier, the mean, variance, and the standard deviation of those portfolios, and the covariance between them.
+
+\[
+\text{We obtain $\omega_1$ and $\omega_2$ through,} \quad \omega = \lambda_1 V^{-1} E(R) + \lambda_2 V^{-1} 1_N 
+\]
+
+First we assign $\lambda_1 = 1$ and $\lambda_2 = 0$, then we assign $\lambda_1 = 0$ and $\lambda_2 = 1$.
+
+We obtain:
+
+\[
+\omega_1 = \frac{V^{-1}E(R)}{1_N^{'}V^{-1}E(R)} \quad \text{and} \quad \omega_2 = \frac{V^{-1}1_N}{1_N^{'}V^{-1}1_N}
+\]
+
+Note that, we divide $\omega_1$ by $1_N^{'}V^{-1}E(R)$ and $\omega_2$ by $1_N^{'}V^{-1}1_N$ to force the sum of the wieghts to be 1.
+
+```{r a}
+I<-rep(1,17)
+d1<-as.matrix(data[,c(-1)])
+#Obtain the covariance matrix V
+V<-cov(data[, c(-1)])
+
+#Obtain the expected return of each indutry portfolio and generate a vector
+E<-colMeans(data[2:18])
+
+#Obtain w1 portfolio
+w1<-(solve(V)%*%E)/sum((solve(V)%*%E))
+
+#Obtain the mean, variance, and standard deviation of w1 portfolio
+Ew1<-t(w1)%*%E
+Varw1<-var(d1%*%w1) #vector of n rows, each row is a year, col is the portfolo return in that year. so the whole vector is a portfolio's return over these years, it's a R.V from the time perspective of view.
+# you can also use t(w1)%*%V%*%w1
+
+Stdw1<-sqrt(Varw1)
+cat("The mean of w1 = ", Ew1, ", the variance of w1 = ", Varw1,", the standard deviation of w1 = ", Stdw1)
+
+#Obtain w2 portfolio
+w2<-(solve(V)%*%I)/sum((solve(V)%*%I))
+
+#Obtain the mean, variance, and standard deviation of w2 portfolio
+Ew2<-t(w2)%*%E
+Varw2<-var(d1%*%w2)
+Stdw2<-sqrt(Varw2)
+cat("The mean of w2 = ", Ew2, ", the variance of w2 = ", Varw2,", the standard deviation of w2 = ", Stdw2)
+
+#Obtain covariance between w1 and w2 portfolios
+Cov<-cov(d1%*%w1,d1%*%w2)
+cat("The covariance between w1 and w2 = ", Cov)
+
+```
+
+# b)
+Denote by $p$ and $(1−p)$ the weights of those two portfolios in a combined portfolio, $p$, and obtain the mean and variance of the resulting combined portfolios for different values of $p$.
+
+We obtain return, variance and standard deviation f each portfolio through:
+
+$E(R)_{P}=p\times E(R)_{w_{1}} +(1-p) \times E(R)_{w_{2}}$
+
+$Var_{P}=p^{2}\times Var_{w_{1}}+(1-p)^{2}\times Var_{w_{2}}+2\times p\times (1-p)\times Cov_{w1,w2}$
+
+$Std_{P}=\sqrt{p{2}\times Var_{w_{1}}+(1-p)^{2}\times Var_{w_{2}}+2\times p\times (1-p)\times Cov_{w1,w2})}$
+
+
+```{r b}
+#Obtain the mean and variance of the resulting combined portfolios for diﬀerent values of p
+p<-seq(-5,5,0.01)
+VarP<-(p^2)*Varw1+(1-p)^2*Varw2+2*p*(1-p)*Cov
+StdP<-sqrt(VarP)
+
+ERp<-p*Ew1+(1-p)*Ew2
+plot(p,ERp,
+main="b.1) The mean of the expected return",
+ylab="E(R)",
+xlab="p",
+type="l",
+col="blue")
+
+plot(p,StdP,
+main="b.2) The variance of the expected return",
+ylab="Var(R)",
+xlab="p",
+type="l",
+col="blue")
+
+
+
+```
+
+# c) 
+Lets draw the frontier in the mean-standard deviation space and locate the minimum variance portfolio and the efficient frontier in the graph.
+
+- In order to obtain frotier we need to obtain different combinations of portfolios denoted by $\omega_1$ and $\omega_2$. In question (B), we obtained different combinations of $\omega_1$ and $\omega_2$ by using a sequence of different weights ($p$ and $(1-p)$). Plotting those portfolios will give us the Frontier. The portfolio denoted by $\omega_2$ is the Minumum Variance Portfolio.
+
+- In order to obtain efficient frontier in the absence of a Risk Free asset, we need to consider all the portfolios above the Minumum Variance Portfolio in terms of Expected Return and Std. Deviation. Since all the portfolios below Minumum Variance Portfolio will have same standard deviation but lower expected return compared to portfolios above the Minumum Variance Portfolio, portfolios that are below the Minumum Variance Portfolio are inefficient.
+
+
+```{r c}
+#draw the fontier
+plot(StdP,ERp,
+main="c) The frontier",
+ylab="E(R)",
+xlab="Std",
+type="l",
+col="blue")
+
+
+#locate minimum variance portfolio
+points(x=min(StdP),y=ERp[which.min(StdP)],cex = 3, pch = 23,col = "black",bg = "green")
+text(x=min(StdP),y = 1,labels = "minimum variance portfolio", pos = 4, offset = 1)
+
+#draw the efficient frontier
+lines(StdP[which(ERp>ERp[which.min(StdP)])], ERp[which(ERp>ERp[which.min(StdP)])], col="red",type="p" ,lwd=0.3)
+
+legend("topleft",
+c("The frontier","The efficient frontier"),
+fill=c("blue","red")
+)
+```
+
+# d)
+
+Suppose you are willing to invest in a portfolio with a standard deviation as high as 5% per month, but not more than that. What portfolio should we choose in order to maximize the expected return of your investment?
+
+
+```{r d}
+ERp_d<-max(ERp[which(round(StdP,digits = 2) == 5.00)])
+p_d<-max(p[which(round(StdP,digits = 2) == 5.00)])
+
+cat("The composition of the portfolio: p = ", p_d,", 1-p = ", 1-p_d)
+cat("Its expected return = ", ERp_d,", its standard deviation = 5%")
+
+
+
+```
+
+# e) 
+From now on suppose we introduce a risk-free asset paying an interest rate $R_f= 0.4\%$ per month. And we are going to do the same analysis in the presence of a risk free asset:
+
+```{r e}
+rf<-0.4
+#Obtain tangency portfolio
+wt<-(solve(V)%*%(E-rf))/sum((solve(V)%*%(E-rf)))
+
+#mean
+Ewt<-t(wt)%*%E
+
+#std deviation
+Stdwt<-sqrt(var(d1%*%wt))
+
+#draw the frontiers
+p <-seq(-10,10,0.01)
+q <-seq(0,5,0.001)
+plot(StdP, ERp,
+main="e) Frontiers",
+ylab="E(R)",
+xlab="Std",
+xlim=c(0,10),
+type="l",
+col="blue")
+
+
+lines(q*Stdwt,q*Ewt+(1-q)*0.4, col="red")
+
+legend("topleft",
+c("old frontier","new frontier"),
+fill=c("blue","red")
+) 
+
+
+#locate risk free asset and the tangency portfolio
+points(x = c(0,Stdwt),y = c(rf,Ewt),cex = 1.5, pch = 23,col = "black",bg = "green")
+text(x = c(0,Stdwt),y = c(rf,Ewt), labels = c("risk free asset","the tangency portfolio"), pos = 4, offset = 1)
+```
+
+# f) 
+
+Assume that an investor’s preferences can be represented by the following expected utility function: $E(R_p) − \alpha \sigma^2_p$, with $\alpha > 0$. Using the two-fund separation theorem, we are going to solve first analytically the investor’s optimal investment in the tangency portfolio, $p$, as a function of $\alpha$ ,$E(R_T)$, and $\sigma_T^2$. Then we are going to assume $\alpha = 4$, and we will use the previous solution to compute $p$ as well as the investor’s optimal investment in each one of the 18 assets as a fraction of her wealth.
+\newpage
+- Analytical solution
+
+Investor's Problem:
+
+\[
+Max \quad U\left(E(R_p), \sigma_p^2\right)=E(R_p) - \alpha \sigma_p^2
+\]
+
+Since she is going to divide her wealth between tangency portfolio and risk free asset, her problem can be written as:
+
+\[
+Max \quad U\left(E(R_p), \sigma_p^2\right)=pE(R_T) + (1-p)R_f - \alpha p^2 \sigma_T^2
+\]
+
+In order to maximize utility function, first, we need to check second order condition:
+
+\[
+\frac{\partial \  U(E(R_p), \sigma_p^2)}{\partial \ p} = E(R_T) - R_f - 2 \alpha p \sigma_T^2
+\]
+
+and
+
+\[
+\frac{\partial^2 \  U(E(R_p), \sigma_p^2)}{\partial \ p^2} = - 2 \alpha \sigma_T^2<0, \ \text{since $\alpha >0$ and $\sigma_T^2 >0$, second order condition holds.}
+\]
+
+Thus:
+
+\[
+\frac{\partial \  U(E(R_p), \sigma_p^2)}{\partial \ p} = E(R_T) - R_f - 2 \alpha p^* \sigma_T^2=0
+\]
+
+where $p^*$ is the proportion of investor's wealth which should be invested in tangency portfolio in order to maximize her utility
+$p^*$ can be written as:
+
+\[
+p^* = \frac{E(R_T) - R_f}{2\alpha \sigma^2_T}
+\]
+
+- Now Assume $\alpha = 4$
+
+
+```{r f}
+#investment portion in the tangency portfolio
+
+#mean and Var of portfolio's return
+p <-seq(0,10,0.001) 
+VarP2<-p^2*(var(d1%*%wt))/100
+#用百分数直接算的收益率，收益率放大了100倍，但是方差放大了10000倍
+ERp2<-p*Ewt+(1-p)*0.4
+
+#define utility function
+U<-ERp2-4*VarP2
+
+
+#compute p and optimal investment
+optimal_p<-p[which.max(U)]
+optimal_p
+(Ewt-0.4)/(2*4*var(d1%*%wt))
+
+optimal_inv<-rbind(optimal_p*wt,(1-optimal_p))
+rownames(optimal_inv)[18]<-"risk free asset"
+
+
+#draw frontier
+plot(sqrt(VarP2),ERp2,
+main="f) Optimal portfolio",
+ylab="E(R)",
+xlab="Std",
+xlim=c(0,5),
+ylim=c(0,3),
+type="l",
+col="blue")
+
+#draw indifference curve for max utility
+x <-seq(-5,5,0.01) 
+lines(x, max(U)+4*x^2,col="red")
+
+legend("topleft",
+c("efficient frontier","indifference curve for max utility"),
+fill=c("blue","red")
+) 
+
+#Locate the investor’s optimal portfolio
+points(x =sqrt(VarP2[which.max(U)]) ,y = ERp2[which.max(U)],cex = 1.5, pch = 23,col = "black",bg = "green")
+text(x =sqrt(VarP2[which.max(U)]) ,y = ERp2[which.max(U)], labels = "Optimal portfolio", pos = 4, offset = 1)
+
+cat("p = ",optimal_p, "\n",sep="","the investor's optimal investment in each one of the 18 assets as a fraction of her wealth","\n","is as follows: ")
+optimal_inv
+
+```
+
+# g) 
+Suppose now that the lending and borrowing rates for the risk-free asset are $R_{f,l}= 0\%$ and $R_{f,b}= 0.6\%$ per month, respectively. Lets see what happens to efficient frontier.
+
+
+```{r g}
+p<-seq(0,10,0.001)
+StdP<-sqrt((p^2)*Varw1+(1-p)^2*Varw2+2*p*(1-p)*Cov)
+ERp<-p*Ew1+(1-p)*Ew2
+
+
+#lend risk free asset
+rfl<-0
+#Obtain the new tangency portfolio given rfl=0
+wtl<-(solve(V)%*%(E-rfl))/sum((solve(V)%*%(E-rfl)))
+#mean and std the new tangency portfolio
+Ewtl<-t(wtl)%*%E
+Stdwtl<-sqrt(var(d1%*%wtl))
+#mean and std portfolio combined with the new tangency portfolio and risk free asset
+El<-p*Ewtl+(1-p)*rfl
+Stdl<-p*sqrt(var(d1%*%wtl))
+
+
+#borrow risk free asset
+rfb<-0.6
+#Obtain the new tangency portfolio given rfb=0.6
+wtb<-(solve(V)%*%(E-rfb))/sum((solve(V)%*%(E-rfb)))
+#mean and std the new tangency portfolio
+Ewtb<-t(wtb)%*%E
+Stdwtb<-sqrt(var(d1%*%wtb))
+#mean and std portfolio combined with the new tangency portfolio and risk free asset
+Eb<-p*Ewtb+(1-p)*rfb
+Stdb<-p*sqrt(var(d1%*%wtb))
+
+#draw old frontier
+plot(StdP,ERp, #x=c(p[which(StdP == c(Stdwtl)):which(StdP == c(Stdwtb))]),y=c(p[which(ERp == c(Ewtl)):which(ERp ==c(Ewtb))]
+main="g) New efficient frontier",
+ylab="E(R)",
+xlab="Std",
+xlim=c(0,20),
+ylim=c(0,2),
+type="l",
+col="green",
+lwd=2,
+lty=4)
+
+#draw 2 capital allocation lines
+lines(Stdl[which(p<1)],El[which(p<1)],col="red",lwd=3)
+lines(Stdb[which(p>1)],Eb[which(p>1)],col="red",lwd=3)
+
+#draw the new efficient frontier
+points(x = c(Stdwtl,Stdwtb),y = c(Ewtl,Ewtb),cex = 1.5, pch = 23,col = "black",bg = "green")
+lines(StdP[which((StdP>c(Stdwtl)) & (StdP<c(Stdwtb)))], ERp[which((ERp>c(Ewtl) & (ERp<c(Ewtb))))], col="red",lwd=2)
+
+legend("topleft",
+c("new efficient frontier"),
+fill=c("red","green")
+) 
+```
+
+
+
